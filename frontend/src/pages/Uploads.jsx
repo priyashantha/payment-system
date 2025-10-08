@@ -1,6 +1,6 @@
 import { useState } from "react";
 import FileUpload from "../components/FileUpload";
-import RecordList from "../components/RecordList";
+import UploadedList from "../components/UploadedList.jsx";
 
 export default function Uploads() {
     const [refreshKey, setRefreshKey] = useState(0);
@@ -13,7 +13,7 @@ export default function Uploads() {
     return (
         <div>
             <FileUpload onUploadSuccess={handleUploadSuccess} />
-            <RecordList key={refreshKey} />
+            <UploadedList key={refreshKey} />
         </div>
     );
 }

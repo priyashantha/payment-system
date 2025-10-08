@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import {isCustomer, isSystemUser} from "../utils/auth.jsx";
+import Pagination from "../components/Pagination";
 
 export default function Invoices({ userType = "admin" }) {
     const [invoices, setInvoices] = useState([]);
@@ -125,25 +126,7 @@ export default function Invoices({ userType = "admin" }) {
             )}
 
             {/* Pagination */}
-            <div className="flex justify-center gap-2 mt-4">
-                <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
-                >
-                    Prev
-                </button>
-                <span>
-                    Page {page} / {lastPage}
-                </span>
-                <button
-                    onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-                    disabled={page === lastPage}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
-                >
-                    Next
-                </button>
-            </div>
+            <Pagination page={page} lastPage={lastPage} setPage={setPage} />
         </div>
     );
 }

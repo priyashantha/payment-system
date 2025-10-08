@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
+import Pagination from "../components/Pagination.jsx";
 
 export default function UploadPayments() {
     const { id } = useParams();
@@ -139,25 +140,7 @@ export default function UploadPayments() {
             )}
 
             {/* Pagination */}
-            <div className="flex justify-center gap-2 mt-4">
-                <button
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    disabled={page === 1}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
-                >
-                    Prev
-                </button>
-                <span>
-          Page {page} / {lastPage}
-        </span>
-                <button
-                    onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-                    disabled={page === lastPage}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
-                >
-                    Next
-                </button>
-            </div>
+            <Pagination page={page} lastPage={lastPage} setPage={setPage} />
         </div>
     );
 }
