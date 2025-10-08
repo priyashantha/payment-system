@@ -16,26 +16,29 @@ class ProcessDailyPayoutFile implements ShouldQueue
 
     public function handle()
     {
-        $payments = Payment::where('status', 'pending')
+        $totalCustomers = 0;
+
+        Payment::where('status', 'pending')
             ->whereDate('created_at', today())
-            ->get()
-            ->groupBy('customer_id');
+            ->orderBy('id')
+            ->chunkById(50000, function ($paymentsChunk) use (&$totalCustomers) {
+                // Group by customer within this chunk
+                $grouped = $paymentsChunk->groupBy('customer_id')->map(function ($group) {
+                    return [
+                        'customer_id' => $group->first()->customer_id,
+                        'payment_ids' => $group->pluck('id')->toArray(),
+                    ];
+                })->values();
 
-        // Flatten into customer groups first
-        $groupedData = $payments->map(function ($group) {
-            return [
-                'customer_id' => $group->first()->customer_id,
-                'payment_ids' => $group->pluck('id')->toArray(),
-            ];
-        })->values(); // ->values() resets keys
+                // Further break into 200-customer subchunks
+                foreach ($grouped->chunk(200) as $chunk) {
+                    ProcessDailyPayoutChunk::dispatch($chunk->toArray());
+                    Log::info('Dispatched payout chunk with ' . count($chunk) . ' customers.');
+                }
 
-        // Now chunk by 200 customers per job
-        foreach ($groupedData->chunk(200) as $chunk) {
-            $chunkData = $chunk->toArray(); // ensure plain array
-            ProcessDailyPayoutChunk::dispatch($chunkData);
-            Log::info('Dispatched payout chunk with ' . count($chunkData) . ' customers.');
-        }
+                $totalCustomers += $grouped->count();
+            });
 
-        Log::info('Payout file job completed successfully — total customers: ' . $groupedData->count());
+        Log::info('Payout job completed successfully — total customers processed: ' . $totalCustomers);
     }
 }

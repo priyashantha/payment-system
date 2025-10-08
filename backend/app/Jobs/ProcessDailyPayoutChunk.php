@@ -33,13 +33,6 @@ class ProcessDailyPayoutChunk implements ShouldQueue
 
             $payments = Payment::whereIn('id', $group['payment_ids'])->get();
 
-//            $html = view('emails.invoice', [
-//                'customer' => $customer,
-//                'payments' => $payments,
-//                'invoice_date' => $invoiceDate,
-//                'total_usd' => $totalUsd,
-//            ])->render();
-
             $invoice = Invoice::create([
                 'customer_id' => $customer->id,
                 'invoice_date' => today(),
