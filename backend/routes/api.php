@@ -10,6 +10,13 @@ use App\Http\Controllers\PaymentUploadController;
 Route::post('/admin/login', [AdminAuthController::class, 'login']);
 Route::post('/customer/login', [CustomerAuthController::class, 'login']);
 
+
+Route::middleware('auth:customer-api')->group(function () {
+    Route::get('/invoices', [InvoiceController::class, 'index']);
+    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+});
+
+
 // Admin routes
 Route::middleware('auth:user-api')->group(function () {
     Route::get('/payment-uploads', [PaymentUploadController::class, 'index']);
