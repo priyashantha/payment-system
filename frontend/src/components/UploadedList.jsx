@@ -24,6 +24,9 @@ export default function UploadedList() {
                     <th className="border p-2">ID</th>
                     <th className="border p-2">Filename</th>
                     <th className="border p-2">Status</th>
+                    <th className="border p-2">Total Records (from csv)</th>
+                    <th className="border p-2">Processed</th>
+                    <th className="border p-2">Failed</th>
                     <th className="border p-2">Uploaded At</th>
                     <th className="border p-2">Action</th>
                 </tr>
@@ -34,6 +37,11 @@ export default function UploadedList() {
                         <td className="border p-2">{r.id}</td>
                         <td className="border p-2">{r.filename}</td>
                         <td className="border p-2">{r.status}</td>
+                        <td className="border p-2">{r.total_records.toLocaleString()}</td>
+                        <td className="border p-2">{r.processed_records.toLocaleString()}</td>
+                        <td className={r.failed_records > 0 ? 'border p-2 text-red-600' : 'border p-2'}>
+                            {r.failed_records.toLocaleString()}
+                        </td>
                         <td className="border p-2">
                             {new Date(r.created_at).toLocaleString()}
                         </td>

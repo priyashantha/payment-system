@@ -12,7 +12,7 @@ class PaymentUploadController extends Controller
     {
         $uploads = PaymentUpload::withCount('payments')
             ->orderByDesc('created_at')
-            ->paginate(20, ['id', 'filename', 'status', 'created_at']);
+            ->paginate(20, ['id', 'filename', 'status', 'created_at', 'total_records', 'processed_records', 'failed_records']);
 
         return response()->json($uploads);
     }

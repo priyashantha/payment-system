@@ -20,9 +20,10 @@ export default function Invoices({ userType = "admin" }) {
     }, [page, filters]);
 
     const fetchInvoices = async () => {
+        const endPoint = isCustomer() ? '/customer-invoices' : '/invoices';
         setLoading(true);
         try {
-            const res = await axios.get("/invoices", {
+            const res = await axios.get(endPoint, {
                 params: {
                     page,
                     customer: filters.customer || undefined,

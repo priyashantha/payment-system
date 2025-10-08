@@ -12,8 +12,8 @@ Route::post('/customer/login', [CustomerAuthController::class, 'login']);
 
 
 Route::middleware('auth:customer-api')->group(function () {
-    Route::get('/invoices', [InvoiceController::class, 'index']);
-    Route::get('/invoices/{id}', [InvoiceController::class, 'show']);
+    Route::get('/customer-invoices', [InvoiceController::class, 'customerInvoices']);
+    Route::get('/customer-invoices/{id}', [InvoiceController::class, 'showCustomerInvoice']);
 });
 
 

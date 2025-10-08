@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
+import {isCustomer} from "../utils/auth.jsx";
 
 export default function InvoiceDetail() {
     const { id } = useParams();
@@ -12,9 +13,10 @@ export default function InvoiceDetail() {
     }, [id]);
 
     const fetchInvoice = async () => {
+        const endPoint = isCustomer() ? '/customer-invoices' : '/invoices';
         setLoading(true);
         try {
-            const res = await axios.get(`/invoices/${id}`);
+            const res = await axios.get(`${endPoint}/${id}`);
             setInvoice(res.data);
         } catch (err) {
             console.error(err);
