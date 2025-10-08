@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Models\Customer;
 use App\Models\Payment;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,25 +19,30 @@ class ProcessDailyPayoutFile implements ShouldQueue
     {
         $totalCustomers = 0;
 
-        Payment::where('status', 'pending')
-            ->whereDate('created_at', today())
+        Customer::whereHas('payments', function ($q) {
+            $q->where('status', 'pending')->whereDate('created_at', today());
+        })
             ->orderBy('id')
-            ->chunkById(50000, function ($paymentsChunk) use (&$totalCustomers) {
-                // Group by customer within this chunk
-                $grouped = $paymentsChunk->groupBy('customer_id')->map(function ($group) {
-                    return [
-                        'customer_id' => $group->first()->customer_id,
-                        'payment_ids' => $group->pluck('id')->toArray(),
-                    ];
-                })->values();
+            ->chunkById(500, function ($customers) use (&$totalCustomers) {
+                $chunkData = $customers->map(function ($customer) {
+                    $paymentIds = $customer->payments()
+                        ->where('status', 'pending')
+                        ->whereDate('created_at', today())
+                        ->pluck('id')
+                        ->toArray();
 
-                // Further break into 200-customer subchunks
-                foreach ($grouped->chunk(200) as $chunk) {
-                    ProcessDailyPayoutChunk::dispatch($chunk->toArray());
-                    Log::info('Dispatched payout chunk with ' . count($chunk) . ' customers.');
+                    return [
+                        'customer_id' => $customer->id,
+                        'payment_ids' => $paymentIds,
+                    ];
+                })->filter(fn ($data) => !empty($data['payment_ids']));
+
+                if ($chunkData->isNotEmpty()) {
+                    ProcessDailyPayoutChunk::dispatch($chunkData->values()->toArray());
+                    Log::info('Dispatched payout chunk with ' . count($chunkData) . ' customers.');
                 }
 
-                $totalCustomers += $grouped->count();
+                $totalCustomers += $chunkData->count();
             });
 
         Log::info('Payout job completed successfully — total customers processed: ' . $totalCustomers);
