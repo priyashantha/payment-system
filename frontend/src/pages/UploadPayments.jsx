@@ -60,7 +60,6 @@ export default function UploadPayments() {
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
                     <option value="processed">Processed</option>
-                    <option value="failed">Failed</option>
                 </select>
 
                 <input

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { isAuthenticated, logout } from "../utils/auth";
+import {isAuthenticated, isCustomer, isSystemUser, logout} from "../utils/auth";
 
 export default function Header() {
     const navigate = useNavigate();
@@ -16,7 +16,7 @@ export default function Header() {
                 <Link to="/">Home</Link>
                 {isAuthenticated() && (
                     <>
-                        <Link to="/uploads">Payments</Link>
+                        {isSystemUser() && <Link to="/uploads">Payments</Link>}
                         <Link to="/invoices">Invoices</Link>
                         <button
                             onClick={handleLogout}
