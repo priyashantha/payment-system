@@ -34,7 +34,7 @@ class ProcessPaymentFile implements ShouldQueue
         $csv = Reader::createFromStream($stream)->setHeaderOffset(0);
 
         // Chunk dispatching
-        $chunkSize = 1000;
+        $chunkSize = 5000;
         $buffer = [];
         $count = 0;
 

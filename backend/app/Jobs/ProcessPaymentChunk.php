@@ -10,6 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -34,12 +35,14 @@ class ProcessPaymentChunk implements ShouldQueue
         $this->now = now();
         $this->rates = ExchangeRateService::getRates();
 
+        $start = microtime(true);
         [$customers, $customerCodes] = $this->prepareCustomers($this->rows);
+        Log::info('prepareCustomers took '.round(microtime(true)-$start,2).'s');
 
-        [$validPayments, $failedPayments, $successCount, $failedCount] =
-            $this->processPayments($upload, $customers);
+        $start = microtime(true);
+        [$successCount, $failedCount] = $this->processPayments($upload, $customers);
+        Log::info('processPayments took '.round(microtime(true)-$start,2).'s');
 
-        $this->insertPayments($validPayments, $failedPayments);
         $this->updateProgress($upload, $successCount, $failedCount);
     }
 
@@ -48,41 +51,59 @@ class ProcessPaymentChunk implements ShouldQueue
     /* -------------------------------------------------------------------------- */
     private function prepareCustomers(array $rows): array
     {
-        $customerRows = [];
-        $customerCodes = [];
+        // Pre-hashed bcrypt value for 'secret'
+        $defaultHash = Hash::make('secret');
 
+        $customerRows = [];
         foreach ($rows as $row) {
             $code = $row['customer_id'] ?? null;
-            if (!$code) continue;
+            if (!$code) {
+                continue;
+            }
 
-            $customerCodes[] = $code;
-            $customerRows[$code] = [
-                'customer_code' => $code,
-                'email' => $row['customer_email'] ?? null,
-                'name'  => $row['customer_name'] ?? 'Unknown',
-                'password' => Hash::make('secret'),
-                'created_at' => $this->now,
-                'updated_at' => $this->now,
-            ];
+            // Skip duplicates within this chunk
+            if (!isset($customerRows[$code])) {
+                $customerRows[$code] = [
+                    'customer_code' => $code,
+                    'email' => $row['customer_email'] ?? null,
+                    'name'  => $row['customer_name'] ?? 'Unknown',
+                    'password' => $defaultHash,
+                    'created_at' => $this->now,
+                    'updated_at' => $this->now,
+                ];
+            }
         }
 
-        $customerCodes = array_filter(array_unique($customerCodes));
+        $customerCodes = array_keys($customerRows);
 
-        // Existing customers
-        $existing = Customer::whereIn('customer_code', $customerCodes)
+        if (empty($customerCodes)) {
+            Log::info('prepareCustomers: no customer codes found.');
+            return [collect(), []];
+        }
+
+        // Fetch all existing customer codes efficiently
+        $existingCodes = DB::table('customers')
+            ->whereIn('customer_code', $customerCodes)
+            ->pluck('customer_code')
+            ->toArray();
+
+        // Find only the new ones
+        $newCodes = array_diff($customerCodes, $existingCodes);
+
+        // Insert only missing customers
+        if (!empty($newCodes)) {
+            $toInsert = array_intersect_key($customerRows, array_flip($newCodes));
+
+            // Use query builder for speed
+            DB::table('customers')->insert(array_values($toInsert));
+
+            Log::info('Inserted ' . count($toInsert) . ' new customers.');
+        }
+
+        // Fetch all customers for this batch
+        $customers = DB::table('customers')
+            ->whereIn('customer_code', $customerCodes)
             ->get(['id', 'customer_code'])
-            ->keyBy('customer_code');
-
-        // Insert new ones if needed
-        $newCodes = array_diff($customerCodes, $existing->keys()->toArray());
-        if ($newCodes) {
-            $toInsert = array_values(array_intersect_key($customerRows, array_flip($newCodes)));
-            Customer::upsert($toInsert, ['customer_code'], ['email', 'name', 'updated_at']);
-        }
-
-        // Reload all customers
-        $customers = Customer::whereIn('customer_code', $customerCodes)
-            ->get(['id', 'customer_code', 'email'])
             ->keyBy('customer_code');
 
         return [$customers, $customerCodes];
@@ -93,8 +114,8 @@ class ProcessPaymentChunk implements ShouldQueue
     /* -------------------------------------------------------------------------- */
     private function processPayments(PaymentUpload $upload, $customers): array
     {
-        $valid = $failed = [];
         $success = $fail = 0;
+        $batch = [];
 
         foreach ($this->rows as $row) {
             $code = $row['customer_id'] ?? null;
@@ -114,7 +135,7 @@ class ProcessPaymentChunk implements ShouldQueue
                     throw new \Exception("Currency rate not found for {$currency}");
                 }
 
-                $valid[] = [
+                $batch[] = [
                     'payment_upload_id' => $upload->id,
                     'customer_id' => $customer->id,
                     'amount_original' => $data['amount'],
@@ -126,28 +147,17 @@ class ProcessPaymentChunk implements ShouldQueue
                     'created_at' => $this->now,
                     'updated_at' => $this->now,
                 ];
+
                 $success++;
 
-//                Log::info('Payment row SUCCESS', [
-//                    'customer_id' => $code,
-//                    'email' => $email,
-//                    'ref' => $data['reference_no'] ?? 'N/A',
-//                ]);
+                Log::info('Payment row SUCCESS', [
+                    'customer_id' => $code,
+                    'email' => $email,
+                    'ref' => $data['reference_no'] ?? 'N/A',
+                ]);
+
             } catch (Throwable $e) {
                 $fail++;
-                $failed[] = [
-                    'payment_upload_id' => $upload->id,
-                    'customer_id' => $customer?->id,
-                    'amount_original' => $row['amount'] ?? 0,
-                    'currency' => $row['currency'] ?? '',
-                    'amount_usd' => 0,
-                    'reference_no' => $row['reference_no'] ?? uniqid('ERR-'),
-                    'date_time' => $row['date_time'] ?? $this->now,
-                    'status' => 'failed',
-                    'error_message' => $e->getMessage(),
-                    'created_at' => $this->now,
-                    'updated_at' => $this->now,
-                ];
 
                 Log::warning('Payment row FAILED', [
                     'customer_id' => $code,
@@ -158,7 +168,12 @@ class ProcessPaymentChunk implements ShouldQueue
             }
         }
 
-        return [$valid, $failed, $success, $fail];
+        // Insert remaining records in the final batch
+        if (!empty($batch)) {
+            Payment::insertOrIgnore($batch);
+        }
+
+        return [$success, $fail];
     }
 
     /* -------------------------------------------------------------------------- */

@@ -42,7 +42,6 @@ AWS_USE_PATH_STYLE_ENDPOINT=true
 Frontend `.env`:
 ```bash
 VITE_API_URL=http://localhost:8000/api
-VITE_RECAPTCHA_SITE_KEY=YOUR_RECAPTCHA_SITE_KEY
 ```
 
 ---
@@ -87,16 +86,28 @@ docker-compose exec backend php artisan db:seed
 
 ---
 
-### 6. Test Customer Logins
+### 6. Test Logins
 
+#### System User Login
+You can log in to the system using the system user email and the default password 'password' created during seeding. 
+This user has all access in the system including payment file upload, view payments, view invoices, etc.
 
-### 7. Run Queue Workers
-You can log in to the system using the customer email and the default password secret created during import or seeding.
+| Field    | Example          |
+|----------|------------------|
+| Email    | `admin@test.com` |
+| Password | `password`       |
+
+#### Customer Login
+You can log in to the system using the customer email and the default password 'secret' created during import.
+This user can only see the specific invoices belong to the logged in customer.
 
 | Field    | Example                |
 |----------|------------------------|
 | Email    | `customer@example.com` |
 | Password | `secret`               |
+
+
+### 7. Run Queue Workers
 
 This project uses queued jobs for:
 - Processing uploaded payment files
@@ -210,7 +221,7 @@ MAIL_FROM_NAME="Payout System"
 
 ---
 
-## ✅ Verify the Setup
+## Verify the Setup
 
 1. Visit [http://localhost:5173](http://localhost:5173)
 2. Upload a payment CSV (stored in MinIO)

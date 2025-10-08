@@ -9,6 +9,14 @@ class Payment extends Model
     protected $fillable = [
         'status',
         'invoice_id',
+        'payment_upload_id',
+        'customer_id',
+        'amount_original',
+        'currency',
+        'amount_usd',
+        'reference_no',
+        'date_time',
+        'status',
     ];
 
     public function customer()
