@@ -26,10 +26,22 @@ class ProcessPaymentFile implements ShouldQueue
         $upload = PaymentUpload::find($this->uploadId);
         if (!$upload) return;
 
-        // Mark as processing
-        $upload->update(['status' => 'processing']);
+        // ----------------------------
+        // Count total records
+        // ----------------------------
+        $countStream = Storage::disk('s3')->readStream($this->path);
+        $countCsv = Reader::createFromStream($countStream)->setHeaderOffset(0);
+        $totalRecords = iterator_count($countCsv->getRecords());
+        fclose($countStream);
 
-        // Read from S3 (stream)
+        $upload->update([
+            'status' => 'processing',
+            'total_records' => $totalRecords,
+        ]);
+
+        // ----------------------------
+        // Process in chunks
+        // ----------------------------
         $stream = Storage::disk('s3')->readStream($this->path);
         $csv = Reader::createFromStream($stream)->setHeaderOffset(0);
 
