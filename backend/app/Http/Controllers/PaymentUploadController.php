@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Jobs\ProcessPaymentFile;
 use App\Models\PaymentUpload;
 use Illuminate\Http\Request;
+use League\Csv\Reader;
+use League\Csv\Exception as CsvException;
 
 class PaymentUploadController extends Controller
 {
@@ -44,23 +46,62 @@ class PaymentUploadController extends Controller
     public function upload(Request $request)
     {
         $request->validate([
-            'file' => 'required|mimes:csv,txt|max:204800', // 20MB
+            'file' => 'required|mimes:csv,txt|max:204800', // 200MB
         ]);
 
-        $originalName = $request->file('file')->getClientOriginalName();
+        $file = $request->file('file');
+        $originalName = $file->getClientOriginalName();
 
-        $path = $request->file('file')->storeAs('uploads', $originalName, 's3');
+        // Step 1: Read first line and validate headers
+        try {
+            $csv = Reader::createFromPath($file->getRealPath(), 'r');
+            $csv->setHeaderOffset(0);
+            $headers = $csv->getHeader(); // returns an array of header names
+        } catch (CsvException $e) {
+            return response()->json(['message' => 'Invalid CSV format'], 422);
+        }
 
-        // Create batch-level record
+        $requiredHeaders = [
+            'customer_id',
+            'customer_name',
+            'customer_email',
+            'amount',
+            'currency',
+            'reference_no',
+            'date_time',
+        ];
+
+        // Step 2: Check missing headers
+        $missing = array_diff($requiredHeaders, $headers);
+        if (!empty($missing)) {
+            return response()->json([
+                'message' => 'Missing required headers: ' . implode(', ', $missing),
+            ], 422);
+        }
+
+        // Step 3: Optional — detect unexpected headers
+        $unexpected = array_diff($headers, $requiredHeaders);
+        if (!empty($unexpected)) {
+            return response()->json([
+                'message' => 'Unexpected headers found: ' . implode(', ', $unexpected),
+            ], 422);
+        }
+
+        // Step 4: Upload to S3
+        $path = $file->storeAs('uploads', $originalName, 's3');
+
+        // Step 5: Create PaymentUpload record
         $upload = PaymentUpload::create([
             'filename' => basename($path),
             'uploaded_by' => $request->user()->id,
             'status' => 'pending',
         ]);
 
-        // Dispatch background job
+        // Step 6: Dispatch background job
         ProcessPaymentFile::dispatch($path, $upload->id);
 
-        return response()->json(['message' => 'File uploaded and queued for processing: '. $originalName]);
+        return response()->json([
+            'message' => 'File uploaded and queued for processing: ' . $originalName,
+        ]);
     }
 }
