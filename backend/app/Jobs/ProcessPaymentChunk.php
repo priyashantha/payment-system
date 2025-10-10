@@ -117,6 +117,16 @@ class ProcessPaymentChunk implements ShouldQueue
         $success = $fail = 0;
         $batch = [];
 
+        // Collect all new reference_nos in this chunk
+        $newRefs = collect($this->rows)
+            ->pluck('reference_no')
+            ->filter()
+            ->unique()
+            ->values();
+
+        // Find refs that already exist in DB
+        $existingRefs = Payment::whereIn('reference_no', $newRefs)->pluck('reference_no')->toArray();
+
         foreach ($this->rows as $row) {
             $code = $row['customer_id'] ?? null;
             $email = $row['customer_email'] ?? null;
@@ -124,6 +134,10 @@ class ProcessPaymentChunk implements ShouldQueue
 
             try {
                 $data = PaymentRowValidator::validate($row);
+
+                if (in_array($data['reference_no'], $existingRefs)) {
+                    throw new \Exception("Duplicate reference no: {$data['reference_no']}");
+                }
 
                 if (!$customer) {
                     throw new \Exception("Customer not found after upsert: {$code}");
@@ -190,7 +204,7 @@ class ProcessPaymentChunk implements ShouldQueue
     /* -------------------------------------------------------------------------- */
     private function updateProgress(PaymentUpload $upload, int $success, int $failed): void
     {
-        $upload->incrementEach([
+        PaymentUpload::where('id', $upload->id)->incrementEach([
             'processed_records' => $success,
             'failed_records' => $failed,
         ]);
@@ -198,13 +212,8 @@ class ProcessPaymentChunk implements ShouldQueue
         $upload->refresh();
 
         if ($upload->processed_records + $upload->failed_records >= $upload->total_records) {
-            $upload->update([
-                'status' => 'completed',
-            ]);
-
-            Log::info("Upload #{$upload->id} marked as " . strtoupper($upload->status));
+            $upload->update(['status' => 'completed']);
+            Log::info("Upload #{$upload->id} marked as COMPLETED");
         }
-
-        gc_collect_cycles();
     }
 }
