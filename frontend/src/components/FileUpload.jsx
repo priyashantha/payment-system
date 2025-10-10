@@ -23,11 +23,8 @@ export default function FileUpload({ onUploadSuccess }) {
             setFile(null);
             if (fileInputRef.current) fileInputRef.current.value = "";
         } catch (error) {
-            if (error.response?.status === 413) {
-                alert(error.response.data.message || "File is too large (limit 200MB).");
-            } else {
-                alert("Upload failed. Please try again.");
-            }
+            console.log('error', error)
+            alert(error.response.data.message);
         } finally {
             setIsUploading(false);
         }
