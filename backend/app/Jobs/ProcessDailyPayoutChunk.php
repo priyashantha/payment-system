@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -27,30 +28,32 @@ class ProcessDailyPayoutChunk implements ShouldQueue
 
     public function handle()
     {
+        $customerIds = collect($this->chunkData)->pluck('customer_id')->unique();
+        $customers = Customer::whereIn('id', $customerIds)->get()->keyBy('id');
+
+        $invoiceIds = [];
+
         foreach ($this->chunkData as $group) {
-            $customer = Customer::find($group['customer_id']);
+            $customer = $customers->get($group['customer_id']);
             if (!$customer) continue;
 
-            $payments = Payment::whereIn('id', $group['payment_ids'])->get();
+            DB::transaction(function () use ($group, $customer, &$invoiceIds) {
+                $totalUsd = Payment::whereIn('id', $group['payment_ids'])->sum('amount_usd');
 
-            $invoice = Invoice::create([
-                'customer_id' => $customer->id,
-                'invoice_date' => today(),
-                'total_amount_usd' => $payments->sum('amount_usd'),
-            ]);
+                $invoice = Invoice::create([
+                    'customer_id' => $customer->id,
+                    'invoice_date' => today(),
+                    'total_amount_usd' => $totalUsd,
+                ]);
 
-            // Link payments to invoice
-            $payments->each->update([
-                'status' => 'processed',
-                'invoice_id' => $invoice->id,
-            ]);
+                Payment::whereIn('id', $group['payment_ids'])
+                    ->update(['status' => 'processed', 'invoice_id' => $invoice->id]);
 
-            // send email via queued Mailable
-            try {
-                Mail::to($customer->email)->queue(new InvoiceMail($invoice));
-            } catch (\Exception $e) {
-                Log::error("InvoiceMail failed for customer {$customer->id}: {$e->getMessage()}");
-            }
+                $invoiceIds[] = $invoice->id;
+            });
         }
+
+        // Send mails in another async job
+        SendInvoiceMails::dispatch($invoiceIds);
     }
 }
