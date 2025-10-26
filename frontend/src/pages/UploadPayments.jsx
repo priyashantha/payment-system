@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
 import Pagination from "../components/Pagination.jsx";
+import { formatNumber } from "../utils/helpers.jsx"
 
 export default function UploadPayments() {
     const { id } = useParams();
@@ -31,7 +32,7 @@ export default function UploadPayments() {
                 },
             });
 
-            // ✅ new structure
+            // new structure
             setRecords(res.data.payments.data);
             setLastPage(res.data.payments.last_page);
 
@@ -103,7 +104,7 @@ export default function UploadPayments() {
                             <td className="border p-2">
                                 {r.customer?.name || "—"} ({r.customer?.customer_code})
                             </td>
-                            <td className="border p-2 text-right">{r.amount_original}</td>
+                            <td className="border p-2 text-right">{formatNumber(r.amount_original)}</td>
                             <td className="border p-2">{r.currency}</td>
                             <td className="border p-2">
                                 <span

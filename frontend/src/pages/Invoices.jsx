@@ -3,6 +3,7 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import {isCustomer, isSystemUser} from "../utils/auth.jsx";
 import Pagination from "../components/Pagination";
+import {formatNumber} from "../utils/helpers.jsx";
 
 export default function Invoices({ userType = "admin" }) {
     const [invoices, setInvoices] = useState([]);
@@ -104,7 +105,7 @@ export default function Invoices({ userType = "admin" }) {
                                 </td>
                             )}
                             <td className="border p-2 text-right">
-                                {parseFloat(inv.total_amount_usd)?.toFixed(2)}
+                                {formatNumber(inv.total_amount_usd)}
                             </td>
                             <td className="border p-2 text-center">
                                 {new Intl.DateTimeFormat("en-GB", {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 import {isCustomer} from "../utils/auth.jsx";
+import {formatNumber} from "../utils/helpers.jsx";
 
 export default function InvoiceDetail() {
     const { id } = useParams();
@@ -78,14 +79,11 @@ export default function InvoiceDetail() {
                                     {p.reference_no}
                                 </td>
                                 <td className="border p-2 text-right text-gray-700">
-                                    {p.amount_original.toLocaleString(undefined, {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                    })}
+                                    {formatNumber(p.amount_original)}
                                 </td>
                                 <td className="border p-2 text-gray-700">{p.currency}</td>
                                 <td className="border p-2 text-right text-gray-700">
-                                    {parseFloat(p.amount_usd).toFixed(2)}
+                                    {formatNumber(p.amount_usd)}
                                 </td>
                             </tr>
                         ))}
@@ -94,7 +92,7 @@ export default function InvoiceDetail() {
                                 Total (USD)
                             </td>
                             <td className="border p-2 text-right">
-                                {parseFloat(invoice.total_amount_usd).toFixed(2)}
+                                {formatNumber(invoice.total_amount_usd)}
                             </td>
                         </tr>
                         </tbody>
